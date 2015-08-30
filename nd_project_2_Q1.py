@@ -9,6 +9,8 @@ import collections
 import pprint
 import operator
 from pymongo import MongoClient
+from ggplot import *
+from pandas import DataFrame
 """
 
 <tag k="addr:housenumber" v="5158"/>
@@ -46,7 +48,7 @@ problemchars = re.compile(r'[=\+/&<>;\'"\?%#$@\,\. \t\r\n]')
 
 CREATED = [ "version", "changeset", "timestamp", "user", "uid"]
 OTHER_KEYS = ['id', 'visible']
-DATA_TYPES = ['node', 'way']
+DATA_TYPES = ['node']
 
 def summarize_original_data(file_in):
     count = 0
@@ -60,60 +62,70 @@ def summarize_original_data(file_in):
         for _, element in ET.iterparse(file_in):
             if element.tag == d:
                 osm_datum[count] = []
-                if len(element) > 0:
-                    for item in element:   
-                        osm_datum[count].append(item.attrib)     
-                    osm_datum[count].append(element.attrib)
-                    #Histogram of user contributors
-                    if 'user' in element.attrib.keys():
-                        if element.attrib['user'] in description['contributors'].keys():
-                            description['contributors'][element.attrib['user']] += 1
-                        else:
-                            description['contributors'][element.attrib['user']] = 1    
-                    #Histogram of number of datapoints included in node
-                    if len(osm_datum[count]) in description['data_points'].keys():
-                        description['data_points'][len(osm_datum[count])] += 1
+                for item in element:   
+                    osm_datum[count].append(item.attrib)     
+                osm_datum[count].append(element.attrib)
+                #Histogram of user contributors
+                if 'user' in element.attrib.keys():
+                    if element.attrib['user'] in description['contributors'].keys():
+                        description['contributors'][element.attrib['user']] += 1
                     else:
-                        description['data_points'][len(osm_datum[count])] = 1
-                    #Histogram of tag frequency
-                    for point in osm_datum[count]:
-                        for t in point.keys():    
-                            if t == 'k':                                
-                                if point[t] in description['tags'].keys():
-                                    description['tags'][point[t]] += 1
-                                else:
-                                    description['tags'][point[t]] = 1
-                    
+                        description['contributors'][element.attrib['user']] = 1    
+                #Histogram of number of datapoints included in node
+                if len(osm_datum[count]) in description['data_points'].keys():
+                    description['data_points'][len(osm_datum[count])] += 1
+                else:
+                    description['data_points'][len(osm_datum[count])] = 1
+                #Histogram of tag frequency
+                for point in osm_datum[count]:
+                    for t in point.keys():    
+                        if t == 'k':                                
+                            if point[t] in description['tags'].keys():
+                                description['tags'][point[t]] += 1
+                            else:
+                                description['tags'][point[t]] = 1           
                 count += 1
+
 
         sorted_users = sorted(description['contributors'].items(), key=operator.itemgetter(1), reverse=True)
         sorted_data_points = sorted(description['data_points'].items(), key=operator.itemgetter(1), reverse=True)
         sorted_tags = sorted(description['tags'].items(), key=operator.itemgetter(1), reverse=True)
 
         #Print the total number of records
-        print "Records for OSM {0}:".format(d)
+        print "Total records for OSM {0}:".format(d)
         print count
 
-        # if d == 'node':
-        #     print "Number of descriptive tags per node:"
-        #     print pprint.pprint(sorted_data_points)
+        print "Number of descriptive tags for OSM {0}:".format(d)
+        pprint.pprint(sorted_data_points)
 
-        if d == 'node':
-            print "Most common descriptive tags:"
-            print pprint.pprint(sorted_tags)
+        print "Most common descriptive tags for OSM {0}:".format(d)
+        pprint.pprint(sorted_tags)
 
-        # print "Contributors to OSM {0} by contribution numbers:".format(d)
-        # print pprint.pprint(sorted_users) 
+        print "Contributors to OSM {0} by contribution numbers:".format(d)
+        pprint.pprint(sorted_users) 
 
+        print "Total unique contributors to OSM {0}:".format(d)
+        print len(sorted_users)
 
-                # if 'k' in way_attrib[way_count]:
-                #     if way_attrib[way_count]['k'] in way_type.keys():
-                #         way_type[way_attrib[way_count]['k']] += 1
-                #     else:
-                #         way_type[way_attrib[way_count]['k']] = 1
+        #create histogram for contributor users
+        user_df = DataFrame(sorted_users)
+        user_df = user_df.rename(columns = {0:'user', 1:'contributions'})
+        other_sum = user_df[7:]['contributions'].sum()
+        user_df.loc[7] = ['other', other_sum]
+        user_df = user_df[0:8]
+        user_df['rank_col'] = user_df.index
+        #user_df_other = DataFrame({'user':'other','contributions':other_sum}, index=index)
+        print user_df
+        # user_df = user_df.append(user_df_other)
+        # print user_df
+        p = ggplot(user_df, aes(x='rank_col', fill= 'contributions', weight='contributions')) +\
+        geom_bar(aes(width=0.7), position='stack') +\
+        xlim(-0.5, 7.5) +\
+        xlab("User contribution rank")
+        # ylab("Contributions") +\
+        # ggtitle("Contributions to Shasta County OSM Nodes")
+        print p
 
-            #pprint.pprint(len(way_attrib))
-            #print way_count
          
 
         #Count all nodes and append all keys - return distribution of the last key to see what most nodes are
