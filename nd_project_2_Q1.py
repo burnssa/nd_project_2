@@ -6,6 +6,9 @@ import re
 import codecs
 import json
 import collections
+import pprint
+import operator
+from pymongo import MongoClient
 """
 
 <tag k="addr:housenumber" v="5158"/>
@@ -43,6 +46,104 @@ problemchars = re.compile(r'[=\+/&<>;\'"\?%#$@\,\. \t\r\n]')
 
 CREATED = [ "version", "changeset", "timestamp", "user", "uid"]
 OTHER_KEYS = ['id', 'visible']
+DATA_TYPES = ['node', 'way']
+
+def summarize_original_data(file_in):
+    count = 0
+    osm_datum = {}
+    count = 0
+    description = {}
+    description['contributors'] = {}
+    description['data_points'] = {}
+    description['tags'] = {}
+    for d in DATA_TYPES:
+        for _, element in ET.iterparse(file_in):
+            if element.tag == d:
+                osm_datum[count] = []
+                if len(element) > 0:
+                    for item in element:   
+                        osm_datum[count].append(item.attrib)     
+                    osm_datum[count].append(element.attrib)
+                    #Histogram of user contributors
+                    if 'user' in element.attrib.keys():
+                        if element.attrib['user'] in description['contributors'].keys():
+                            description['contributors'][element.attrib['user']] += 1
+                        else:
+                            description['contributors'][element.attrib['user']] = 1    
+                    #Histogram of number of datapoints included in node
+                    if len(osm_datum[count]) in description['data_points'].keys():
+                        description['data_points'][len(osm_datum[count])] += 1
+                    else:
+                        description['data_points'][len(osm_datum[count])] = 1
+                    #Histogram of tag frequency
+                    for point in osm_datum[count]:
+                        for t in point.keys():    
+                            if t == 'k':                                
+                                if point[t] in description['tags'].keys():
+                                    description['tags'][point[t]] += 1
+                                else:
+                                    description['tags'][point[t]] = 1
+                    
+                count += 1
+
+        sorted_users = sorted(description['contributors'].items(), key=operator.itemgetter(1), reverse=True)
+        sorted_data_points = sorted(description['data_points'].items(), key=operator.itemgetter(1), reverse=True)
+        sorted_tags = sorted(description['tags'].items(), key=operator.itemgetter(1), reverse=True)
+
+        #Print the total number of records
+        print "Records for OSM {0}:".format(d)
+        print count
+
+        # if d == 'node':
+        #     print "Number of descriptive tags per node:"
+        #     print pprint.pprint(sorted_data_points)
+
+        if d == 'node':
+            print "Most common descriptive tags:"
+            print pprint.pprint(sorted_tags)
+
+        # print "Contributors to OSM {0} by contribution numbers:".format(d)
+        # print pprint.pprint(sorted_users) 
+
+
+                # if 'k' in way_attrib[way_count]:
+                #     if way_attrib[way_count]['k'] in way_type.keys():
+                #         way_type[way_attrib[way_count]['k']] += 1
+                #     else:
+                #         way_type[way_attrib[way_count]['k']] = 1
+
+            #pprint.pprint(len(way_attrib))
+            #print way_count
+         
+
+        #Count all nodes and append all keys - return distribution of the last key to see what most nodes are
+
+    #In the Northern California dataset there are "{0}".format(way_count), with the most common being ""
+
+    #There are "{0}".format(nodes), with the most common being ""
+
+        #     #Count all ways
+    #     if element.tag == "way":
+    #         way_attrib.append(dict())
+    #         for item in element:
+    #             #pprint.pprint(way_attrib[way_count])
+    #             way_attrib[way_count].update(item.attrib)     
+    #             element_count = 0
+    #             if 'k' in way_attrib[way_count]:
+    #                 if way_attrib[way_count]['k'] in way_type.keys():
+    #                     way_type[way_attrib[way_count]['k']] += 1
+    #                 else:
+    #                     way_type[way_attrib[way_count]['k']] = 1
+    #             element_count += 1
+    #         print element_count
+    #         way_count += 1
+
+    # pprint.pprint(len(way_attrib))
+    # print way_count
+    # sorted_types = sorted(way_type.items(), key=operator.itemgetter(1), reverse=True)
+    # print sorted_types
+
+
 
 def shape_element(element):
     node = {}
@@ -95,11 +196,24 @@ def process_map(file_in, pretty = False):
                     fo.write(json.dumps(el, indent=2)+"\n")
                 else:
                     fo.write(json.dumps(el) + "\n")
-    print data
     return data
-    
 
-process_map(INPUT_FILE, pretty=False)
+def insert_in_mongo(data):
+    client = MongoClient("mongodb://localhost:27017")
+    db = client.examples
+    
+    db.redding_streets.insert(data)
+    print "OSM data for Redding added to Mongo Client"
+
+
+#data = process_map(INPUT_FILE, pretty=False)
+#insert_in_mongo(data)
+
+summarize_original_data(INPUT_FILE)
+
+
+#summarize_clean_data(data)
+
 
 
 #def test():
