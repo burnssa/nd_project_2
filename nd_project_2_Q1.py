@@ -11,34 +11,6 @@ import operator
 from pymongo import MongoClient
 from ggplot import *
 from pandas import DataFrame
-"""
-
-<tag k="addr:housenumber" v="5158"/>
-<tag k="addr:street" v="North Lincoln Avenue"/>
-<tag k="addr:street:name" v="Lincoln"/>
-<tag k="addr:street:prefix" v="North"/>
-<tag k="addr:street:type" v="Avenue"/>
-<tag k="amenity" v="pharmacy"/>
-
-  should be turned into:
-
-{...
-"address": {
-    "housenumber": 5158,
-    "street": "North Lincoln Avenue"
-}
-"amenity": "pharmacy",
-...
-}
-
-- for "way" specifically:
-
-  <nd ref="305896090"/>
-  <nd ref="1719825889"/>
-
-should be turned into
-"node_refs": ["305896090", "1719825889"]
-"""
 
 INPUT_FILE = 'shasta_county_map.osm'
 
@@ -56,7 +28,7 @@ def shape_element(element):
     node['pos'] = []
     node['node_refs'] = []
     if element.tag == "node" or element.tag == "way" :
-        node['type'] = element.tag
+        node['el_type'] = element.tag
         for i in CREATED:
             node['created'].update({i:element.attrib[i]})  
         for l in ['lat', 'lon']:
@@ -81,15 +53,12 @@ def shape_element(element):
                 else:
                     node[k] = v
             if 'ref' in item.attrib:
-                node['node_refs'].append(item.attrib['ref'])
-            
+                node['node_refs'].append(item.attrib['ref'])   
         if not node['node_refs']:
-            del node['node_refs']
-            
+            del node['node_refs']        
         return node
     else:
         return None
-    return node
 
 def process_map(file_in, pretty = False):
     # You do not need to change this file

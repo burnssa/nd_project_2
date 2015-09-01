@@ -13,45 +13,12 @@ import pymongo
 from pymongo import TEXT
 from ggplot import *
 from pandas import DataFrame
-"""
-
-<tag k="addr:housenumber" v="5158"/>
-<tag k="addr:street" v="North Lincoln Avenue"/>
-<tag k="addr:street:name" v="Lincoln"/>
-<tag k="addr:street:prefix" v="North"/>
-<tag k="addr:street:type" v="Avenue"/>
-<tag k="amenity" v="pharmacy"/>
-
-  should be turned into:
-
-{...
-"address": {
-    "housenumber": 5158,
-    "street": "North Lincoln Avenue"
-}
-"amenity": "pharmacy",
-...
-}
-
-- for "way" specifically:
-
-  <nd ref="305896090"/>
-  <nd ref="1719825889"/>
-
-should be turned into
-"node_refs": ["305896090", "1719825889"]
-"""
 
 INPUT_FILE = 'shasta_county_map.osm'
-
-lower = re.compile(r'^([a-z]|_)*$')
-lower_colon = re.compile(r'^([a-z]|_)*:([a-z]|_)*$')
-problemchars = re.compile(r'[=\+/&<>;\'"\?%#$@\,\. \t\r\n]')
 
 CREATED = [ "version", "changeset", "timestamp", "user", "uid"]
 OTHER_KEYS = ['id', 'visible']
 DATA_TYPES = ['node', 'way']
-
 
 #Mongo data analysis
 def mongo_db_analysis():
@@ -65,11 +32,11 @@ def mongo_db_analysis():
 
     #Number of nodes
     print "Total nodes:"
-    print data.find({"type":"node"}).count()
+    print data.find({"el_type":"node"}).count()
 
     #Number of ways
     print "Total ways:"
-    print data.find({"type":"way"}).count()
+    print data.find({"el_type":"way"}).count()
 
     #Number of unique uesrs
     print "Total unique users:"
@@ -83,9 +50,9 @@ def mongo_db_analysis():
     for u in top_users:
         pprint.pprint(u)
 
-    #Top 8 types of amenities (from Node)
+    #Top 8 el_types of amenities (from Node)
     print "Top 8 amenities (from nodes):"
-    amenities = data.aggregate([{"$match" : { "type":"node"}},
+    amenities = data.aggregate([{"$match" : { "el_type":"node"}},
             {"$group":{"_id":"$amenity", "count": 
             {"$sum":1}}}, {"$sort":{"count": -1}}, 
             {"$limit":8}])
@@ -100,58 +67,87 @@ def mongo_db_analysis():
         toilet_list.append(t['id'])
     print len(toilet_list)
 
+    school_list = []
+    print "All school names:"
+    schools = data.find({"$and": [{"amenity":"school"},{"el_type":"node"}]})
+    for s in schools:
+        pprint.pprint(s['name'])
+        school_list.append(s['name'])
+    print len(school_list)
 
-    # #Top 7 contributors
-    # print "Top 7 unique users by contributions in nodes:"
-    # top_users = data.aggregate([
-    #         {"$match" : { "type":"node"}},
-    #         {"$group":{"_id":"$created.user", "count": 
-    #         {"$sum":1}}}, {"$sort":{"count": -1}}, 
-    #         {"$limit":7}])
-    # for u in top_users:
-    #     pprint.pprint(u)
+    #Top 7 contributors
+    print "Top 7 unique users by contributions in nodes:"
+    top_users = data.aggregate([
+            {"$match" : { "el_type":"node"}},
+            {"$group":{"_id":"$created.user", "count": 
+            {"$sum":1}}}, {"$sort":{"count": -1}}, 
+            {"$limit":7}])
+    for u in top_users:
+        pprint.pprint(u)
 
-    # print "Number of entries marked waterway:"
-    # top_waterways = data.aggregate([
-    #         {"$group":{"_id":"$waterway", "count": 
-    #         {"$sum":1}}}, {"$sort":{"count": -1}}, 
-    #         {"$limit":8}])
-    # for w in top_waterways:
-    #     pprint.pprint(w)
+    print "Number of entries marked waterway:"
+    top_waterways = data.aggregate([
+            {"$group":{"_id":"$waterway", "count": 
+            {"$sum":1}}}, {"$sort":{"count": -1}}, 
+            {"$limit":8}])
+    for w in top_waterways:
+        pprint.pprint(w)
 
-    # print "Number of entries marked highway:"
-    # top_highway = data.aggregate([
-    #         {"$group":{"_id":"$highway", "count": 
-    #         {"$sum":1}}}, {"$sort":{"count": -1}}, 
-    #         {"$limit":8}])
-    # for h in top_highway:
-    #     pprint.pprint(h)
+    print "Number of entries marked highway:"
+    top_highway = data.aggregate([
+            {"$group":{"_id":"$highway", "count": 
+            {"$sum":1}}}, {"$sort":{"count": -1}}, 
+            {"$limit":8}])
+    for h in top_highway:
+        pprint.pprint(h)
 
-    # print "Named entries completed by tiger:"
-    # tiger_source = data.aggregate([
-    #         {"$group":{"_id":"$tiger:name_base", "count": 
-    #         {"$sum":1}}}, {"$sort":{"count": -1}},
-    #         {"$limit":8}])
+    print "Named entries completed by tiger:"
+    tiger_source = data.aggregate([
+            {"$group":{"_id":"$tiger:name_base", "count": 
+            {"$sum":1}}}, {"$sort":{"count": -1}},
+            {"$limit":8}])
     
-    # for t in tiger_source:
-    #     pprint.pprint(t)
+    for t in tiger_source:
+        pprint.pprint(t)
 
-    # total_tiger = data.aggregate([
-    #          {"$group":{"_id":"$tiger:source", "count": 
-    #          {"$sum":1}}}
-    #          ])
-    # print "Total records added by tiger:"
-    # for t in total_tiger:
-    #     print t
+    total_tiger = data.aggregate([
+             {"$group":{"_id":"$tiger:source", "count": 
+             {"$sum":1}}}
+             ])
+    print "Total records added by tiger:"
+    for t in total_tiger:
+        print t
 
-    # print "Cuisines:"
-    # cuisine = data.aggregate([
-    #         {"$group":{"_id":"$cuisine", "count": 
-    #         {"$sum":1}}}, {"$sort":{"count": -1}}])
+    print "Cuisines:"
+    cuisine = data.aggregate([
+            {"$group":{"_id":"$cuisine", "count": 
+            {"$sum":1}}}, {"$sort":{"count": -1}}])
 
-    # for c in cuisine:
-    #     pprint.pprint(c)
+    for c in cuisine:
+        pprint.pprint(c)
 
+def verify_discrepancies(file_in):
+    school_list = {}
+    add_count = 0
+    for _, element in ET.iterparse(file_in):
+        if element.tag == 'node':
+            school_list[add_count] = []
+            has_school = 0
+            for item in element:
+                if item.attrib['v'] == 'school':
+                    has_school += 1
+                school_list[add_count].append(item.attrib)
+            if has_school > 0:
+                pass
+            else:
+                del school_list[add_count] 
+            add_count += 1
+    pprint.pprint(school_list)
+    print len(school_list)
+    for school in school_list.values():
+        for el in school:
+            if el['k'] == 'name':
+                print el['v']
 
 def check_for_errors(file_in):
     address_list = {}
@@ -166,7 +162,7 @@ def check_for_errors(file_in):
                 del address_list[add_count]
             add_count += 1
 
-    #pprint.pprint(address_list)
+    pprint.pprint(address_list)
 
     postcode_list = []
     street_list = []
@@ -181,7 +177,6 @@ def check_for_errors(file_in):
                 street_list.append(ele)
             if d['k'] == 'addr:housenumber':
                 housenumber_list.append(ele)
-
 
     #Total number of nodes with any address information
     print "Number of nodes with any address information:"
@@ -260,11 +255,11 @@ def summarize_original_data(file_in):
         print "Total records for OSM {0}:".format(d)
         print count
 
-        # print "Number of descriptive tags for OSM {0}:".format(d)
-        # pprint.pprint(sorted_data_points)
+        print "Number of descriptive tags for OSM {0}:".format(d)
+        pprint.pprint(sorted_data_points)
 
-        # print "Most common descriptive tags for OSM {0}:".format(d)
-        # pprint.pprint(sorted_tags)
+        print "Most common descriptive tags for OSM {0}:".format(d)
+        pprint.pprint(sorted_tags)
 
         print "Contributors to OSM {0} by contribution numbers:".format(d)
         pprint.pprint(sorted_users) 
@@ -288,8 +283,8 @@ def summarize_original_data(file_in):
         scale_x_continuous(limits = (0.5,8.5), breaks = range(1,9)) +\
         xlab("User contribution rank") +\
         ylab("Share of total contributions")
-        # ggtitle("Contributions to Shasta County OSM Nodes")
-        # print p
+        ggtitle("Contributions to Shasta County OSM Nodes")
+        print p
 
         #create histogram table for node types
         tag_df = DataFrame(sorted_tags)
@@ -300,8 +295,7 @@ def summarize_original_data(file_in):
         tag_df['rank_col'] = (tag_df.index + 1)
         total_occurrences = tag_df['occurrences'].sum()
         tag_df['percentage'] = tag_df['occurrences'] / total_occurrences
-        #user_df_other = DataFrame({'user':'other','contributions':other_sum}, index=index)
-        # print tag_df
+        print tag_df
 
         #create histogram table for amenities
         amenity_df = DataFrame(sorted_amenities)
@@ -314,10 +308,10 @@ def summarize_original_data(file_in):
         amenity_df['rank_col'] = (amenity_df.index + 1)
         total_occurrences = amenity_df['occurrences'].sum()
         amenity_df['percentage'] = amenity_df['occurrences'] / total_occurrences
-        #user_df_other = DataFrame({'user':'other','contributions':other_sum}, index=index)
         print amenity_df
 
 mongo_db_analysis()
-#check_for_errors(INPUT_FILE)
-#summarize_original_data(INPUT_FILE)
+check_for_errors(INPUT_FILE)
+verify_discrepancies(INPUT_FILE)
+summarize_original_data(INPUT_FILE)
 
