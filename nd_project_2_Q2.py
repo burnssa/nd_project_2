@@ -13,6 +13,7 @@ import pymongo
 from pymongo import TEXT
 from ggplot import *
 from pandas import DataFrame
+from sets import Set
 
 INPUT_FILE = 'shasta_county_map.osm'
 
@@ -125,6 +126,44 @@ def mongo_db_analysis():
 
     for c in cuisine:
         pprint.pprint(c)
+
+def fill_in_missing_city_fields(file_in):
+    city_zipcode_dict = {}
+    city_postal_list = {}
+    add_count = 0
+    for _, element in ET.iterparse(file_in):
+        if element.tag == 'node':
+            city_postal_list[add_count] = []
+            has_city_or_code = 0
+            for item in element:
+                if item.attrib['k'] == 'addr:city' or item.attrib['k'] == 'addr:postcode':
+                    has_city_or_code += 1
+                    city_postal_list[add_count].append(item.attrib['v'])
+                    if item.attrib['k'] == 'addr:city' and item.attrib['v'] not in city_zipcode_dict.keys():
+                        city_zipcode_dict[item.attrib['v']] = Set([])
+                    elif len(city_postal_list[add_count]) == 2:
+                        city_zipcode_dict[city_postal_list[add_count][0]].add(city_postal_list[add_count][1]) 
+            if has_city_or_code > 0:
+                pass
+            else:
+                del city_postal_list[add_count]
+            add_count += 1
+
+    print "This is the original list of city and postal code information by node:"
+    pprint.pprint(city_postal_list)
+    
+    for item in city_postal_list.keys():
+        if len(city_postal_list[item]) == 1 and city_postal_list[item][0] not in city_zipcode_dict.keys():
+            for c in city_zipcode_dict.keys():
+                if city_postal_list[item][0] in city_zipcode_dict[c]:
+                    city_postal_list[item] = [c, city_postal_list[item][0]]
+                else:
+                    pass
+        elif len(city_postal_list[item]) == 1 and city_postal_list[item][0] == 'Shasta Lake':    
+            city_postal_list[item] = ['Shasta Lake', list(city_zipcode_dict['Shasta Lake'])[0]]
+
+    print "This is the revised list of city and postal code information with missing city information filled in:"
+    pprint.pprint(city_postal_list)
 
 def verify_discrepancies(file_in):
     school_list = {}
@@ -310,8 +349,9 @@ def summarize_original_data(file_in):
         amenity_df['percentage'] = amenity_df['occurrences'] / total_occurrences
         print amenity_df
 
-mongo_db_analysis()
-check_for_errors(INPUT_FILE)
-verify_discrepancies(INPUT_FILE)
-summarize_original_data(INPUT_FILE)
+# mongo_db_analysis()
+fill_in_missing_city_fields(INPUT_FILE)
+# check_for_errors(INPUT_FILE)
+# verify_discrepancies(INPUT_FILE)
+# summarize_original_data(INPUT_FILE)
 
